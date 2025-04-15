@@ -167,7 +167,8 @@ router.delete('/deleteCate/:id', async (req, res) => {
 router.post('/products',upload.single('image'), async (req, res) => {
     try {
         const { name, price, category } = req.body;
- const image = req.file ? req.file.path : null; // Lưu đường dẫn ảnh
+        const image = req.file ? `https://api-duem.onrender.com/images/${req.file.filename}` : null;
+
         const newProduct = new product({
             name,
             price,
