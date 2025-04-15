@@ -18,11 +18,11 @@ router.post('/login',async (req,res)=>{
             return res.status(400).json({message:'Sai thông tin'}); 
             }else{
                 const token = JWT.sign({id:User._id},config.SECRETKEY,{expiresIn:"30s"});
-                const refreshToken = JWT.sign({id:User._id},config.SECRETKEY,{expiresIn:"1d "});
+                const refreshToken = JWT.sign({id:User._id},config.SECRETKEY,{expiresIn:"1d"});
                 res.status (200).json({message:'Đăng nhập thành công', token: token,refreshToken:refreshToken});
             }
     } catch (error) {
-        res .status(500).json({message:'Lỗi hệ thống'});
+        res.status(500).json({ message: 'Lỗi hệ thống', error: error.message });
     }
 })
 
