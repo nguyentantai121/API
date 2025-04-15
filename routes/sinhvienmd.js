@@ -12,8 +12,8 @@ const config = require('../util/config');
 // login
 router.post('/login',async (req,res)=>{
     try {
-        const {ten,mssv}=req.body;
-        const User = await sinhvienmd.findOne({ten:ten,mssv:mssv});
+        const {ten,masv}=req.body;
+        const User = await sinhvienmd.findOne({ten:ten,masv:masv});
         if(!User){
             return res.status(400).json({message:'Sai thông tin'}); 
             }else{
