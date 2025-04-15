@@ -46,7 +46,7 @@ app.use('/users', usersRouter);
 app.use('/sinhvien',sinhvienRouter);
 app.use('/category',categori);
 app.use('/sinhvienmd',sinhvienmd);
-app.use('/asm',asm)
+app.use('/asm',asm,express.static('images'))
 
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {
