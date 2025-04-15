@@ -22,7 +22,7 @@ router.post('/login',async (req,res)=>{
                 res.status (200).json({message:'Đăng nhập thành công', token: token,refreshToken:refreshToken});
             }
     } catch (error) {
-        
+        res .status(500).json({message:'Lỗi hệ thống'});
     }
 })
 
