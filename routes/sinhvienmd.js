@@ -5,6 +5,26 @@ var upload = require('../util/upload');
 var sendMail = require('../util/email');
 const fs = require("fs").promises;
 const path = require("path");
+const JwT = require('jsonwebtoken');
+const config = require('../util/config');
+
+
+// login
+router.post('/login',async (req,res)=>{
+    try {
+        const {ten,mssv}=req.body;
+        const User = await sinhvienmd.findOne({ten:ten,mssv:mssv});
+        if(!User){
+            return res.status(400).json({message:'Sai thông tin'}); 
+            }else{
+                const token = JWT.sign({id:User._id},config.SECRETKEY,{expiresIn:"30s"});
+                const refreshToken = JWT.sign({id:User._id},config.SECRETKEY,{expiresIn:"1d "});
+                res.status (200).json({message:'Đăng nhập thành công', token: token,refreshToken:refreshToken});
+            }
+    } catch (error) {
+        
+    }
+})
 
 // Lấy toàn bộ danh sách sinh viên
 router.get('/listthemall', async function (req, res) {
