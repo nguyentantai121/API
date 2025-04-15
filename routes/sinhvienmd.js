@@ -12,19 +12,31 @@ const config = require('../util/config');
 // login
 router.post('/login', async (req, res) => {
     try {
+        console.log("Body nhận được:", req.body); // 👈 log này sẽ giúp kiểm tra
+
         const { ten, masv } = req.body;
+
+        if (!ten || !masv) {
+            return res.status(400).json({ message: 'Thiếu thông tin đăng nhập' });
+        }
+
         const User = await sinhvienmd.findOne({ ten: ten, masv: masv });
+
         if (!User) {
             return res.status(400).json({ message: 'Sai thông tin' });
-        } else {
-            const token = JWT.sign({ id: User._id }, config.SECRETKEY, { expiresIn: "30s" });
-            const refreshToken = JWT.sign({ id: User._id }, config.SECRETKEY, { expiresIn: "1d" });
-            res.status(200).json({ message: 'Đăng nhập thành công', token: token, refreshToken: refreshToken });
         }
+
+        const token = JWT.sign({ id: User._id }, config.SECRETKEY, { expiresIn: "30s" });
+        const refreshToken = JWT.sign({ id: User._id }, config.SECRETKEY, { expiresIn: "1d" });
+
+        res.status(200).json({ message: 'Đăng nhập thành công', token, refreshToken });
+
     } catch (error) {
+        console.error("Lỗi trong login:", error.message); // 👈 log ra lỗi chi tiết
         res.status(500).json({ message: 'Lỗi hệ thống', error: error.message });
     }
-})
+});
+
 
 // Lấy toàn bộ danh sách sinh viên
 router.get('/listthemall', async function (req, res) {
@@ -124,67 +136,149 @@ router.get('/findmasv/:masv', async function (req, res) {
 });
 
 
-// Thêm mới sinh viên
+// Thêm mới sinh viên (có kiểm tra token)
 router.post('/add', async function (req, res) {
-    var newsinhvien = new sinhvienmd(req.body);
-    await newsinhvien.save();
-    res.status(200).json({ status: true, message: "them thanh cong", sinhvien: newsinhvien });
-});
+    try {
+        const authHeader = req.header("Authorization");
+        if (!authHeader) return res.status(401).json({ status: false, message: "Thiếu token" });
 
-// Cập nhật thông tin sinh viên theo MSSV
-router.put('/update/:masv', async function (req, res) {
-    const { ten, bomon, diemtb, tuoi } = req.body;
+        const token = authHeader.split(' ')[1];
+        JWT.verify(token, config.SECRETKEY, async (err, decoded) => {
+            if (err) return res.status(403).json({ status: false, message: "Token không hợp lệ", error: err.message });
 
-    var update = await sinhvienmd.findOneAndUpdate(
-        { masv: req.params.masv },
-        {
-            ten: ten || undefined,
-            bomon: bomon || undefined,
-            diemtb: diemtb || undefined,
-            tuoi: tuoi || undefined
-        },
-        { new: true });
-    res.status(200).json({ status: true, message: "cap nhat thanh cong", sinhvien: update });
-});
-
-// Xóa sinh viên theo MSSV
-router.delete('/delete/:masv', async function (req, res) {
-    var xoa = await sinhvienmd.findOneAndDelete(
-        { masv: req.params.masv });
-    if (!xoa) {
-        return res.status(400).json({ status: false, message: "Không tìm thấy sinh viên" });
+            const newsinhvien = new sinhvienmd(req.body);
+            await newsinhvien.save();
+            res.status(200).json({ status: true, message: "Thêm thành công", sinhvien: newsinhvien });
+        });
+    } catch (error) {
+        res.status(500).json({ status: false, message: "Lỗi hệ thống", error: error.message });
     }
-    res.status(200).json({ status: true, message: "xoa thanh cong", sinhvien: xoa });
 });
 
-// Lấy danh sách sinh viên thuộc bộ môn CNTT và có điểm trung bình trên 9.0
+// Cập nhật sinh viên theo MSSV (có kiểm tra token)
+router.put('/update/:masv', async function (req, res) {
+    try {
+        const authHeader = req.header("Authorization");
+        if (!authHeader) return res.status(401).json({ status: false, message: "Thiếu token" });
+
+        const token = authHeader.split(' ')[1];
+        JWT.verify(token, config.SECRETKEY, async (err, decoded) => {
+            if (err) return res.status(403).json({ status: false, message: "Token không hợp lệ", error: err.message });
+
+            const { ten, bomon, diemtb, tuoi } = req.body;
+            const update = await sinhvienmd.findOneAndUpdate(
+                { masv: req.params.masv },
+                {
+                    ten: ten || undefined,
+                    bomon: bomon || undefined,
+                    diemtb: diemtb || undefined,
+                    tuoi: tuoi || undefined
+                },
+                { new: true }
+            );
+            res.status(200).json({ status: true, message: "Cập nhật thành công", sinhvien: update });
+        });
+    } catch (error) {
+        res.status(500).json({ status: false, message: "Lỗi hệ thống", error: error.message });
+    }
+});
+
+// Xóa sinh viên theo MSSV (có kiểm tra token)
+router.delete('/delete/:masv', async function (req, res) {
+    try {
+        const authHeader = req.header("Authorization");
+        if (!authHeader) return res.status(401).json({ status: false, message: "Thiếu token" });
+
+        const token = authHeader.split(' ')[1];
+        JWT.verify(token, config.SECRETKEY, async (err, decoded) => {
+            if (err) return res.status(403).json({ status: false, message: "Token không hợp lệ", error: err.message });
+
+            const xoa = await sinhvienmd.findOneAndDelete({ masv: req.params.masv });
+            if (!xoa) return res.status(400).json({ status: false, message: "Không tìm thấy sinh viên" });
+            res.status(200).json({ status: true, message: "Xoá thành công", sinhvien: xoa });
+        });
+    } catch (error) {
+        res.status(500).json({ status: false, message: "Lỗi hệ thống", error: error.message });
+    }
+});
+
+// Lấy danh sách sinh viên bộ môn CNTT điểm > 9 (có kiểm tra token)
 router.get('/bm9', async function (req, res) {
-    var list = await sinhvienmd.find(
-        { bomon: "CNTT", diemtb: { $gte: 9.0 } });
-    res.status(200).json({ status: true, message: "thanh cong", list });
+    try {
+        const authHeader = req.header("Authorization");
+        if (!authHeader) return res.status(401).json({ status: false, message: "Thiếu token" });
+
+        const token = authHeader.split(' ')[1];
+        JWT.verify(token, config.SECRETKEY, async (err, decoded) => {
+            if (err) return res.status(403).json({ status: false, message: "Token không hợp lệ", error: err.message });
+
+            const list = await sinhvienmd.find({ bomon: "CNTT", diemtb: { $gte: 9.0 } });
+            res.status(200).json({ status: true, message: "Thành công", list });
+        });
+    } catch (error) {
+        res.status(500).json({ status: false, message: "Lỗi hệ thống", error: error.message });
+    }
 });
 
-// Lọc sinh viên theo độ tuổi từ 18-23 thuộc CNTT và điểm trung bình >= 6.5
+// Lọc sinh viên CNTT tuổi 18-23 điểm >= 6.5 (có kiểm tra token)
 router.get('/loc', async function (req, res) {
-    var list = await sinhvienmd.find({
-        bomon: "CNTT",
-        diemtb: { $gte: 6.5 },
-        tuoi: { $gte: 18, $lte: 23 }
-    });
-    res.status(200).json({ status: true, message: "thanh cong", list });
+    try {
+        const authHeader = req.header("Authorization");
+        if (!authHeader) return res.status(401).json({ status: false, message: "Thiếu token" });
+
+        const token = authHeader.split(' ')[1];
+        JWT.verify(token, config.SECRETKEY, async (err, decoded) => {
+            if (err) return res.status(403).json({ status: false, message: "Token không hợp lệ", error: err.message });
+
+            const list = await sinhvienmd.find({
+                bomon: "CNTT",
+                diemtb: { $gte: 6.5 },
+                tuoi: { $gte: 18, $lte: 23 }
+            });
+            res.status(200).json({ status: true, message: "Thành công", list });
+        });
+    } catch (error) {
+        res.status(500).json({ status: false, message: "Lỗi hệ thống", error: error.message });
+    }
 });
 
-// Sắp xếp danh sách sinh viên theo điểm trung bình tăng dần
+// Sắp xếp danh sách sinh viên theo điểm trung bình tăng dần (có kiểm tra token)
 router.get('/sapxep', async function (req, res) {
-    var list = await sinhvienmd.find().sort({ diemtb: 1 });
-    res.status(200).json({ status: true, message: "thanh cong", list });
+    try {
+        const authHeader = req.header("Authorization");
+        if (!authHeader) return res.status(401).json({ status: false, message: "Thiếu token" });
+
+        const token = authHeader.split(' ')[1];
+        JWT.verify(token, config.SECRETKEY, async (err, decoded) => {
+            if (err) return res.status(403).json({ status: false, message: "Token không hợp lệ", error: err.message });
+
+            const list = await sinhvienmd.find().sort({ diemtb: 1 }); // 1 là tăng dần, -1 là giảm dần
+            res.status(200).json({ status: true, message: "Thành công", list });
+        });
+    } catch (error) {
+        res.status(500).json({ status: false, message: "Lỗi hệ thống", error: error.message });
+    }
 });
 
-// Tìm sinh viên có điểm trung bình cao nhất thuộc bộ môn CNTT
+
+// Tìm sinh viên có điểm trung bình cao nhất thuộc CNTT (có kiểm tra token)
 router.get('/maxdtb', async function (req, res) {
-    var maxdtb = await sinhvienmd.findOne({ bomon: "CNTT" }).sort({ diemtb: -1 });
-    res.status(200).json({ status: true, message: "thanh cong", sinhvien: maxdtb });
+    try {
+        const authHeader = req.header("Authorization");
+        if (!authHeader) return res.status(401).json({ status: false, message: "Thiếu token" });
+
+        const token = authHeader.split(' ')[1];
+        JWT.verify(token, config.SECRETKEY, async (err, decoded) => {
+            if (err) return res.status(403).json({ status: false, message: "Token không hợp lệ", error: err.message });
+
+            const maxdtb = await sinhvienmd.findOne({ bomon: "CNTT" }).sort({ diemtb: -1 });
+            res.status(200).json({ status: true, message: "Thành công", sinhvien: maxdtb });
+        });
+    } catch (error) {
+        res.status(500).json({ status: false, message: "Lỗi hệ thống", error: error.message });
+    }
 });
+
 
 // 🟢 Upload hình ảnh
 router.post('/upload', upload.single('hinh'), async (req, res) => {

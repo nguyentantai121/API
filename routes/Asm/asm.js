@@ -8,6 +8,8 @@ var detailsmodel = require('../../model/Asm/detailsModel');
 const multer = require('multer');
 const path = require('path');
 const upload = require('../../util/upload');
+const JWT = require('jsonwebtoken');
+const config = require('../../util/config');
 /**
  * 1 Signup : post /signup (req: userName, email, password, phone_number)
  * {
@@ -49,7 +51,8 @@ router.post('/signup', async (req, res) => {
             userName, email, password, phone_number
         });
         await newUser.save();
-        res.status(200).json({ status: true, message: " dang ky thanh cong" })
+        
+        res.status(200).json({ status: true, message: " dang ky thanh cong"  });
 
     } catch (error) {
         res.status(400).json({ status: false, error })
@@ -58,15 +61,15 @@ router.post('/signup', async (req, res) => {
 // login
 router.post('/login', async (req, res) => {
     try {
-        const { email, password } = req.body;// lấy dữ liệu từ body
-
-        // tim user
+        const { email, password } = req.body;
         const User = await user.findOne({ email });
         if (!User) return res.status(400).json({ status: false, message: "tai khong khong ton tai!" });
-        // so sanh password
         const isMatch = User.password === password;
         if (!isMatch) return res.status(400).json({ status: false, message: "mat khau k dung" });
-        res.status(200).json({ status: true, message: "dang nhap thanh cong" });
+        const token = JWT.sign({ id: User._id }, config.SECRETKEY, { expiresIn: "60s" });
+        const refreshToken = JWT.sign({ id: User._id }, config.SECRETKEY, { expiresIn: "1d" });
+
+        res.status(200).json({ status: true, message: "dang nhap thanh cong", token: token, refreshToken: refreshToken });
     } catch (error) {
         res.status(500).json({ status: false, error });
 
@@ -76,45 +79,109 @@ router.post('/login', async (req, res) => {
 // xem thong tin user theo id
 router.get('/users/:id', async (req, res) => {
     try {
-        const userId = req.params.id;
-        const User = await user.findById(userId);
-        if (!User) return res.status(400).json({ status: false, message: "khong tim thay user" });
-        res.status(200).json({ status: true, message: "thanh cong", User });
+        const authHeader = req.header("Authorization");
+
+        if (!authHeader) {
+            return res.status(401).json({ status: false, message: "Thiếu token" });
+        }
+
+        const token = authHeader.split(' ')[1];
+
+        try {
+            const decoded = await JWT.verify(token, config.SECRETKEY);
+
+            const userId = req.params.id;
+            const User = await user.findById(userId);
+
+            if (!User) {
+                return res.status(400).json({ status: false, message: "Không tìm thấy user" });
+            }
+
+            res.status(200).json({ status: true, message: "Thành công", User });
+        } catch (err) {
+            return res.status(403).json({ status: false, message: "Token không hợp lệ", error: err.message });
+        }
     } catch (error) {
-        res.status(500).json({ status: false, error });
+        res.status(500).json({ status: false, message: "Lỗi hệ thống", error: error.message });
     }
 });
-//  CREATE - Tạo đơn hàng mới
+
+// CREATE - Tạo đơn hàng mới
 router.post('/order', async (req, res) => {
     try {
-        const { status, user } = req.body;
-        const ordernew = new order({
-            status, user
-        });
-        await ordernew.save();
-        res.status(200).json({ status: true, message: "tạo đơn hàng mới" });
+        const authHeader = req.header("Authorization");
+
+        if (!authHeader) {
+            return res.status(401).json({ status: false, message: "Thiếu token" });
+        }
+
+        const token = authHeader.split(' ')[1];
+
+        try {
+            const decoded = await JWT.verify(token, config.SECRETKEY);
+
+            const { status, user } = req.body;
+            const ordernew = new order({
+                status, user
+            });
+            await ordernew.save();
+            res.status(200).json({ status: true, message: "Tạo đơn hàng mới thành công" });
+        } catch (err) {
+            return res.status(403).json({ status: false, message: "Token không hợp lệ", error: err.message });
+        }
 
     } catch (error) {
         res.status(400).json({ status: false, error });
     }
-})
+});
 
-//  READ - Lấy tất cả đơn hàng theo id user
+// READ - Lấy tất cả đơn hàng theo id user
 router.get('/orders/:userId', async (req, res) => {
     try {
-        const orders = await order.find({ user: req.params.id },
-        );
-        res.status(200).json({ status: true, data: orders });
+        const authHeader = req.header("Authorization");
+
+        if (!authHeader) {
+            return res.status(401).json({ status: false, message: "Thiếu token" });
+        }
+
+        const token = authHeader.split(' ')[1];
+
+        try {
+            const decoded = await JWT.verify(token, config.SECRETKEY);
+
+            const orders = await order.find({ user: req.params.userId });
+            res.status(200).json({ status: true, data: orders });
+        } catch (err) {
+            return res.status(403).json({ status: false, message: "Token không hợp lệ", error: err.message });
+        }
+
     } catch (error) {
         res.status(500).json({ status: false, error });
     }
 });
+
 //  DELETE - Xóa đơn hàng
 router.delete('/delete/:id', async (req, res) => {
     try {
-        const deletedOrder = await order.findByIdAndDelete(req.params.id);
-        if (!deletedOrder) return res.status(404).json({ status: false, message: 'Khong tim thay don hang' });
-        res.status(200).json({ status: true, message: 'Don hang da duoc xoa' });
+        const authHeader = req.header("Authorization");
+
+        if (!authHeader) {
+            return res.status(401).json({ status: false, message: "Thiếu token" });
+        }
+
+        const token = authHeader.split(' ')[1];
+
+        try {
+            const decoded = await JWT.verify(token, config.SECRETKEY);
+
+            const deletedOrder = await order.findByIdAndDelete(req.params.id);
+            if (!deletedOrder) return res.status(404).json({ status: false, message: 'Không tìm thấy đơn hàng' });
+            res.status(200).json({ status: true, message: 'Đơn hàng đã được xóa' });
+
+        } catch (err) {
+            return res.status(403).json({ status: false, message: "Token không hợp lệ", error: err.message });
+        }
+
     } catch (error) {
         res.status(500).json({ status: false, error });
     }
@@ -123,45 +190,112 @@ router.delete('/delete/:id', async (req, res) => {
 //  CREATE - Thêm danh mục mới
 router.post('/cate', async (req, res) => {
     try {
-        const { name } = req.body;
-        const newCate = new Categori({ name });
-        await newCate.save();
-        res.status(200).json({ status: true, message: 'Thêm danh mục thành công', data: newCate });
+        const authHeader = req.header("Authorization");
+
+        if (!authHeader) {
+            return res.status(401).json({ status: false, message: "Thiếu token" });
+        }
+
+        const token = authHeader.split(' ')[1];
+
+        try {
+            const decoded = await JWT.verify(token, config.SECRETKEY);
+
+            const { name } = req.body;
+            const newCate = new Categori({ name });
+            await newCate.save();
+            res.status(200).json({ status: true, message: 'Thêm danh mục thành công', data: newCate });
+
+        } catch (err) {
+            return res.status(403).json({ status: false, message: "Token không hợp lệ", error: err.message });
+        }
+
     } catch (error) {
-        res.status(400).json({ status: false, message: 'Lỗi khi thêm danh mục', error });
+        res.status(500).json({ status: false, message: 'Lỗi khi thêm danh mục', error });
     }
 });
-
 
 //  READ - Lấy tất cả danh mục
 router.get('/', async (req, res) => {
     try {
-        const list = await Categori.find();
-        res.status(200).json({ status: true, data: list });
+        const authHeader = req.header("Authorization");
+
+        if (!authHeader) {
+            return res.status(401).json({ status: false, message: "Thiếu token" });
+        }
+
+        const token = authHeader.split(' ')[1];
+
+        try {
+            const decoded = await JWT.verify(token, config.SECRETKEY);
+
+            const list = await Categori.find();
+            res.status(200).json({ status: true, data: list });
+
+        } catch (err) {
+            return res.status(403).json({ status: false, message: "Token không hợp lệ", error: err.message });
+        }
+
     } catch (error) {
         res.status(500).json({ status: false, message: 'Lỗi khi lấy danh mục', error });
     }
 });
+
 //  UPDATE - Cập nhật danh mục
 router.put('/update/:id', async (req, res) => {
     try {
-        const updatedCate = await Categori.findByIdAndUpdate(req.params.id, req.body, { new: true });
-        res.status(200).json({ status: true, message: 'Cập nhật thành công', data: updatedCate });
+        const authHeader = req.header("Authorization");
+
+        if (!authHeader) {
+            return res.status(401).json({ status: false, message: "Thiếu token" });
+        }
+
+        const token = authHeader.split(' ')[1];
+
+        try {
+            const decoded = await JWT.verify(token, config.SECRETKEY);
+
+            const updatedCate = await Categori.findByIdAndUpdate(req.params.id, req.body, { new: true });
+            res.status(200).json({ status: true, message: 'Cập nhật thành công', data: updatedCate });
+
+        } catch (err) {
+            return res.status(403).json({ status: false, message: "Token không hợp lệ", error: err.message });
+        }
+
     } catch (error) {
         res.status(400).json({ status: false, message: 'Lỗi khi cập nhật', error });
     }
 });
 
+
 //  DELETE - Xoá danh mục
 router.delete('/deleteCate/:id', async (req, res) => {
     try {
-        console.log("hi", req.params.id);  // Kiểm tra ID nhận vào
-        await Categori.findByIdAndDelete(req.params.id);
-        res.status(200).json({ status: true, message: 'Xoá thành công' });
+        const authHeader = req.header("Authorization");
+
+        if (!authHeader) {
+            return res.status(401).json({ status: false, message: "Thiếu token" });
+        }
+
+        const token = authHeader.split(' ')[1];
+
+        try {
+            const decoded = await JWT.verify(token, config.SECRETKEY);
+
+            console.log("ID cần xoá:", req.params.id);
+            await Categori.findByIdAndDelete(req.params.id);
+
+            res.status(200).json({ status: true, message: 'Xoá thành công' });
+
+        } catch (err) {
+            return res.status(403).json({ status: false, message: "Token không hợp lệ", error: err.message });
+        }
+
     } catch (error) {
         res.status(400).json({ status: false, message: 'Lỗi khi xoá', error });
     }
 });
+
 
 // CREAT - Thêm sản phẩm
 router.post('/products',upload.single('image'), async (req, res) => {
@@ -182,15 +316,32 @@ router.post('/products',upload.single('image'), async (req, res) => {
         res.status(500).json({ status: false, message: 'Lỗi khi tạo sản phẩm', error: error.message });
     }
 });
-//  READ - Lấy tất cả san pham
+//  READ - Lấy tất cả sản phẩm (có xác thực token)
 router.get('/products', async (req, res) => {
     try {
-        const products = await product.find();
-        res.status(200).json({ status: true, message: 'Danh sách sản phẩm', data: products });
+        const authHeader = req.header("Authorization");
+
+        if (!authHeader) {
+            return res.status(401).json({ status: false, message: "Thiếu token" });
+        }
+
+        const token = authHeader.split(' ')[1];
+
+        try {
+            const decoded = await JWT.verify(token, config.SECRETKEY);
+
+            const products = await product.find();
+            res.status(200).json({ status: true, message: 'Danh sách sản phẩm', data: products });
+
+        } catch (err) {
+            return res.status(403).json({ status: false, message: "Token không hợp lệ", error: err.message });
+        }
+
     } catch (error) {
         res.status(500).json({ status: false, message: 'Lỗi khi lấy danh sách sản phẩm', error: error.message });
     }
 });
+
 // Read - Lấy sản phẩm theo danh muc
 router.get('/productCate/:categoryId', async (req, res) => {
     //const categoryId = req.params.categoryId;
@@ -258,7 +409,7 @@ router.post('/details', async (req, res) => {
         }
 
         // Tính tổng giá trị sản phẩm
-        const total_price = products.price * quantity;  // Sửa từ 'product' thành 'products'
+        const total_price = products.price * quantity;  
 
         const newDetail = new detailsmodel({
             order_id,
@@ -280,17 +431,14 @@ router.post('/details', async (req, res) => {
 // GET - Lấy danh sách chi tiết đơn hàng theo id đơn hàng   
 router.get('/details/:id', async (req, res) => {
     try {
-        // Tìm chi tiết đơn hàng
         const detail = await detailsmodel.findById(req.params.id).populate('order_id product_id');
 
         if (!detail) {
             return res.status(404).json({ status: false, message: 'Chi tiết đơn hàng không tồn tại' });
         }
 
-        // Trả về chi tiết đơn hàng
         res.status(200).json({ status: true, message: 'Chi tiết đơn hàng', data: detail });
     } catch (error) {
-        // Log lỗi ra console
         console.error(error);
         res.status(500).json({ status: false, message: 'Lỗi khi lấy chi tiết đơn hàng', error: error.message });
     }
