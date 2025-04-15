@@ -5,7 +5,7 @@ var upload = require('../util/upload');
 var sendMail = require('../util/email');
 const fs = require("fs").promises;
 const path = require("path");
-const JwT = require('jsonwebtoken');
+const JWT = require('jsonwebtoken');
 const config = require('../util/config');
 
 
