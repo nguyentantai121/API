@@ -32,4 +32,4 @@ const sinhvienmd = new Schema({
     
 
 },{versionKey:false});
-module.exports = mongoose.model.sinhvienmd || mongoose.model('sinhvienmd',sinhvienmd);
+module.exports = mongoose.models.sinhvienmd || mongoose.model('sinhvienmd',sinhvienmd);
